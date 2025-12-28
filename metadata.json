@@ -1,0 +1,7 @@
+{
+  "name": "QR Attendance Prod",
+  "description": "A responsive attendance management system for construction sites featuring QR scanning, offline syncing, and centralized monitoring.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
