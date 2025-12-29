@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { ScanResult, AttendanceRecord, AttendanceType } from '../types';
 import { storageService } from '../services/storage';
-import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Camera, X } from 'lucide-react';
 
 interface QRScannerProps {
   onScanSuccess: (record: AttendanceRecord) => void;
@@ -13,32 +13,34 @@ interface QRScannerProps {
 const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) => {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    scannerRef.current = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+    if (isScanning) {
+      scannerRef.current = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+      );
 
-    scannerRef.current.render(onScan, onScanError);
+      scannerRef.current.render(onScan, onScanError);
+    }
 
     return () => {
       if (scannerRef.current) {
         scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err));
+        scannerRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isScanning]);
 
   const onScan = (decodedText: string) => {
     if (isProcessing) return;
     
     try {
       setIsProcessing(true);
-      // Expected format: Base64 JSON or plain JSON string
-      // For this app we assume JSON: {"workerId": "W001", "name": "John Doe", "siteId": "S001"}
       let data: ScanResult;
       try {
         data = JSON.parse(decodedText);
@@ -57,7 +59,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
   };
 
   const onScanError = (err: any) => {
-    // Too many logs on errors (common while scanning) - skip
+    // Skip logging common scanning errors
   };
 
   const handleAttendance = (data: ScanResult) => {
@@ -75,7 +77,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
       return;
     }
 
-    // Logic: Find record for worker today
     let record = attendance.find(r => r.workerId === data.workerId && r.date === today);
     const now = new Date().toISOString();
 
@@ -86,12 +87,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
         return;
       }
       
-      // Perform Check OUT
       record.checkOutTime = now;
       record.status = 'PENDING';
       showFeedback('success', `Check OUT successful for ${worker.name}`);
     } else {
-      // Perform Check IN
       record = {
         id: `ATT-${Date.now()}`,
         date: today,
@@ -111,7 +110,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
     storageService.saveAttendance(attendance);
     onScanSuccess(record);
     
-    // Reset scanner state after delay
     setTimeout(() => {
       setIsProcessing(false);
     }, 2000);
@@ -125,13 +123,39 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden p-6 relative">
-        <h2 className="text-xl font-bold mb-4 text-center">QR Attendance Scanner</h2>
-        <p className="text-slate-500 text-sm text-center mb-6">Position the worker's QR code within the frame</p>
+        <h2 className="text-xl font-bold mb-2 text-center">QR Attendance Scanner</h2>
+        <p className="text-slate-500 text-sm text-center mb-6">Manage site check-ins and check-outs</p>
         
-        <div id="qr-reader" className="overflow-hidden rounded-2xl border-4 border-slate-100"></div>
+        {!isScanning ? (
+          <div className="flex flex-col items-center py-10 px-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-6">
+              <Camera size={40} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Ready to Scan?</h3>
+            <p className="text-slate-500 text-sm text-center mb-8">Click the button below to activate your mobile camera for scanning worker IDs.</p>
+            <button 
+              onClick={() => setIsScanning(true)}
+              className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl uppercase tracking-widest shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center space-x-3"
+            >
+              <Camera size={24} strokeWidth={2.5} />
+              <span>Scan QR</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div id="qr-reader" className="overflow-hidden rounded-2xl border-4 border-slate-100 shadow-inner"></div>
+            <button 
+              onClick={() => setIsScanning(false)}
+              className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 flex items-center justify-center space-x-2 transition-colors"
+            >
+              <X size={18} />
+              <span>Cancel Scanning</span>
+            </button>
+          </div>
+        )}
 
         {feedback && (
-          <div className={`mt-6 p-4 rounded-xl flex items-center space-x-3 animate-bounce ${
+          <div className={`mt-6 p-4 rounded-xl flex items-center space-x-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${
             feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
             feedback.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
             'bg-blue-50 text-blue-700 border border-blue-200'

@@ -63,7 +63,14 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard user={user} isOnline={isOnline} onSyncRequest={handleSync} />;
+        return (
+          <Dashboard 
+            user={user} 
+            isOnline={isOnline} 
+            onSyncRequest={handleSync} 
+            onNavigateToScanner={() => setActiveTab('scanner')} 
+          />
+        );
       case 'scanner':
         return user.role === Role.TIMEKEEPER ? (
           <QRScanner 
@@ -78,7 +85,14 @@ const App: React.FC = () => {
       case 'admin':
         return user.role === Role.ADMIN ? <AdminPanel /> : null;
       default:
-        return <Dashboard user={user} isOnline={isOnline} onSyncRequest={handleSync} />;
+        return (
+          <Dashboard 
+            user={user} 
+            isOnline={isOnline} 
+            onSyncRequest={handleSync} 
+            onNavigateToScanner={() => setActiveTab('scanner')} 
+          />
+        );
     }
   };
 

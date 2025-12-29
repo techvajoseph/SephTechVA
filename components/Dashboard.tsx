@@ -3,15 +3,16 @@ import React, { useEffect, useState } from 'react';
 import { AttendanceRecord, Role, User } from '../types';
 import { storageService } from '../services/storage';
 import { geminiService } from '../services/gemini';
-import { RefreshCw, Users, CheckCircle2, Clock, MapPin, Sparkles } from 'lucide-react';
+import { RefreshCw, Users, CheckCircle2, Clock, MapPin, Sparkles, QrCode } from 'lucide-react';
 
 interface DashboardProps {
   user: User;
   isOnline: boolean;
   onSyncRequest: () => Promise<void>;
+  onNavigateToScanner: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, isOnline, onSyncRequest }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, isOnline, onSyncRequest, onNavigateToScanner }) => {
   const [stats, setStats] = useState({ total: 0, pending: 0, present: 0 });
   const [insight, setInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -54,6 +55,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, isOnline, onSyncRequest }) 
 
   return (
     <div className="space-y-6">
+      {/* Action Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Project Overview</h1>
@@ -64,14 +66,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, isOnline, onSyncRequest }) 
             onClick={handleManualSync}
             disabled={syncing || !isOnline}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              syncing ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+              syncing ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
-            <span>{syncing ? 'Syncing...' : 'Sync Cloud'}</span>
+            <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
           </button>
         </div>
       </div>
+
+      {/* Primary Action Button - Large for Outdoor Use */}
+      {user.role === Role.TIMEKEEPER && (
+        <button 
+          onClick={onNavigateToScanner}
+          className="w-full py-6 bg-blue-600 text-white rounded-[2rem] flex flex-col items-center justify-center space-y-2 shadow-2xl shadow-blue-500/40 active:scale-[0.98] transition-all hover:bg-blue-700 group"
+        >
+          <div className="p-4 bg-white/20 rounded-2xl group-hover:scale-110 transition-transform">
+            <QrCode size={40} strokeWidth={2.5} />
+          </div>
+          <span className="text-xl font-black uppercase tracking-wider">Scan Worker QR</span>
+          <span className="text-blue-100 text-sm font-medium">Record IN / OUT Attendance</span>
+        </button>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -162,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, isOnline, onSyncRequest }) 
             </div>
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs shrink-0 mt-0.5">2</div>
-              <p>When internet is available, use the "Sync Cloud" button to upload to Google Sheets.</p>
+              <p>When internet is available, use the "Sync Data" button to upload to Google Sheets.</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs shrink-0 mt-0.5">3</div>
