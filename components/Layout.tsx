@@ -1,10 +1,12 @@
 
 import React from 'react';
-import { User, Role } from '../types';
+// Fix: Import UserSession instead of User
+import { UserSession, Role } from '../types';
 import { LogOut, Home, Users, QrCode, ClipboardList, Database, LayoutDashboard } from 'lucide-react';
 
 interface LayoutProps {
-  user: User;
+  // Fix: Use UserSession type
+  user: UserSession;
   onLogout: () => void;
   children: React.ReactNode;
   activeTab: string;

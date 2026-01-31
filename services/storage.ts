@@ -1,43 +1,67 @@
 
-import { AttendanceRecord, Worker, Site, User, Role } from '../types';
+import { Attendance, Employee, Site, Timekeeper, UserSession, Role, CloudConfig } from '../types';
 
 const STORAGE_KEYS = {
-  ATTENDANCE: 'sitescan_attendance',
-  WORKERS: 'sitescan_workers',
-  SITES: 'sitescan_sites',
-  CURRENT_USER: 'sitescan_user',
-  PENDING_SYNC: 'sitescan_pending'
+  ATTENDANCE: 'sitescan_attendance_v2',
+  EMPLOYEES: 'sitescan_employees_v2',
+  SITES: 'sitescan_sites_v2',
+  TIMEKEEPERS: 'sitescan_timekeepers_v2',
+  CURRENT_SESSION: 'sitescan_session',
+  CLOUD_CONFIG: 'sitescan_cloud_config'
 };
 
-// Initial Data Seed
 const DEFAULT_SITES: Site[] = [
-  { id: 'S001', name: 'Downtown High-Rise', location: 'Manhattan, NY' },
-  { id: 'S002', name: 'Bridge Renovation', location: 'Brooklyn, NY' }
+  { site_id: 'S001', site_name: 'Downtown High-Rise', location: 'Manhattan, NY' },
+  { site_id: 'S002', site_name: 'Bridge Renovation', location: 'Brooklyn, NY' }
 ];
 
-const DEFAULT_WORKERS: Worker[] = [
-  { id: 'W001', name: 'John Doe', role: 'Carpenter', assignedSiteId: 'S001' },
-  { id: 'W002', name: 'Jane Smith', role: 'Electrician', assignedSiteId: 'S001' },
-  { id: 'W003', name: 'Mike Johnson', role: 'Mason', assignedSiteId: 'S002' }
+const DEFAULT_EMPLOYEES: Employee[] = [
+  { 
+    employee_id: 'W001', 
+    full_name: 'John Doe', 
+    specialization: 'Carpenter', 
+    assigned_site_id: 'S001', 
+    qr_code_value: btoa(JSON.stringify({employee_id: 'W001', site_id: 'S001'})),
+    status: 'active'
+  },
+  { 
+    employee_id: 'W002', 
+    full_name: 'Jane Smith', 
+    specialization: 'Electrician', 
+    assigned_site_id: 'S001', 
+    qr_code_value: btoa(JSON.stringify({employee_id: 'W002', site_id: 'S001'})),
+    status: 'active'
+  }
+];
+
+const DEFAULT_TIMEKEEPERS: Timekeeper[] = [
+  {
+    timekeeper_id: 'TK001',
+    full_name: 'Robert Smith',
+    assigned_site_id: 'S001',
+    login_username: 'tk01',
+    hashed_password: 'password', // Simulation
+    role: Role.TIMEKEEPER
+  }
 ];
 
 export const storageService = {
-  getAttendance: (): AttendanceRecord[] => {
+  getAttendance: (): Attendance[] => {
     const data = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
     return data ? JSON.parse(data) : [];
   },
 
-  saveAttendance: (records: AttendanceRecord[]) => {
+  saveAttendance: (records: Attendance[]) => {
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(records));
   },
 
-  getWorkers: (): Worker[] => {
-    const data = localStorage.getItem(STORAGE_KEYS.WORKERS);
-    return data ? JSON.parse(data) : DEFAULT_WORKERS;
+  getEmployees: (): Employee[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
+    return data ? JSON.parse(data) : DEFAULT_EMPLOYEES;
   },
 
-  saveWorkers: (workers: Worker[]) => {
-    localStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(workers));
+  saveEmployees: (employees: Employee[]) => {
+    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
   },
 
   getSites: (): Site[] => {
@@ -49,16 +73,30 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sites));
   },
 
-  setCurrentUser: (user: User | null) => {
+  getTimekeepers: (): Timekeeper[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.TIMEKEEPERS);
+    return data ? JSON.parse(data) : DEFAULT_TIMEKEEPERS;
+  },
+
+  getCloudConfig: (): CloudConfig => {
+    const data = localStorage.getItem(STORAGE_KEYS.CLOUD_CONFIG);
+    return data ? JSON.parse(data) : { googleSheetUrl: '' };
+  },
+
+  saveCloudConfig: (config: CloudConfig) => {
+    localStorage.setItem(STORAGE_KEYS.CLOUD_CONFIG, JSON.stringify(config));
+  },
+
+  setCurrentSession: (user: UserSession | null) => {
     if (user) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION, JSON.stringify(user));
     } else {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION);
     }
   },
 
-  getCurrentUser: (): User | null => {
-    const data = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+  getCurrentSession: (): UserSession | null => {
+    const data = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
     return data ? JSON.parse(data) : null;
   }
 };

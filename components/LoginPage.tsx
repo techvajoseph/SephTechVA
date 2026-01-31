@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
-import { Role, User } from '../types';
+// Fix: Import UserSession instead of User
+import { Role, UserSession } from '../types';
 import { Lock, User as UserIcon, ShieldAlert } from 'lucide-react';
 
 interface LoginPageProps {
-  onLogin: (user: User) => void;
+  // Fix: Use UserSession type
+  onLogin: (user: UserSession) => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
@@ -17,10 +19,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setError('');
 
     // Mock Authentication Logic
+    // Fix: Payloads adjusted to match UserSession interface
     if (id === 'admin' && password === 'admin') {
-      onLogin({ id: 'ADM001', name: 'System Admin', role: Role.ADMIN, assignedSites: [] });
+      onLogin({ id: 'ADM001', name: 'System Admin', role: Role.ADMIN });
     } else if (id === 'tk01' && password === 'password') {
-      onLogin({ id: 'TK001', name: 'Robert Smith', role: Role.TIMEKEEPER, assignedSites: ['S001', 'S002'] });
+      onLogin({ id: 'TK001', name: 'Robert Smith', role: Role.TIMEKEEPER, assigned_site_id: 'S001' });
     } else {
       setError('Invalid ID or Password. Contact Admin if forgotten.');
     }

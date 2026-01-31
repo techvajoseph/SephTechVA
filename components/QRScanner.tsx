@@ -1,12 +1,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { ScanResult, AttendanceRecord, AttendanceType } from '../types';
+import { ScanResult, Attendance, ScanMode, SyncStatus } from '../types';
 import { storageService } from '../services/storage';
 import { CheckCircle, XCircle, AlertTriangle, Camera, X } from 'lucide-react';
 
 interface QRScannerProps {
-  onScanSuccess: (record: AttendanceRecord) => void;
+  onScanSuccess: (record: Attendance) => void;
   timekeeperId: string;
 }
 
@@ -21,98 +21,99 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
       scannerRef.current = new Html5QrcodeScanner(
         "qr-reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose= */ false
+        false
       );
-
       scannerRef.current.render(onScan, onScanError);
     }
-
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err));
+        scannerRef.current.clear().catch(err => console.error("Scanner clear fail", err));
         scannerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanning]);
 
   const onScan = (decodedText: string) => {
     if (isProcessing) return;
-    
     try {
       setIsProcessing(true);
-      let data: ScanResult;
+      let data: any;
       try {
         data = JSON.parse(decodedText);
       } catch {
-        // Fallback: try base64
         data = JSON.parse(atob(decodedText));
       }
+      
+      const employee_id = data.employee_id || data.workerId;
+      const site_id = data.site_id || data.siteId;
 
-      if (!data.workerId || !data.siteId) throw new Error("Invalid QR Code Data");
-
-      handleAttendance(data);
+      if (!employee_id || !site_id) throw new Error("Invalid Format");
+      handleAttendanceLogic(employee_id, site_id);
     } catch (err) {
-      showFeedback('error', 'Invalid QR code. Please scan a valid worker badge.');
+      showFeedback('error', 'Invalid QR code.');
       setIsProcessing(false);
     }
   };
 
-  const onScanError = (err: any) => {
-    // Skip logging common scanning errors
-  };
+  const onScanError = () => {};
 
-  const handleAttendance = (data: ScanResult) => {
+  const handleAttendanceLogic = (empId: string, siteId: string) => {
     const today = new Date().toISOString().split('T')[0];
-    const attendance = storageService.getAttendance();
+    const attendanceRecords = storageService.getAttendance();
+    const employees = storageService.getEmployees();
     const sites = storageService.getSites();
-    const workers = storageService.getWorkers();
 
-    const worker = workers.find(w => w.id === data.workerId);
-    const site = sites.find(s => s.id === data.siteId);
+    const employee = employees.find(e => e.employee_id === empId);
+    const site = sites.find(s => s.site_id === siteId);
 
-    if (!worker || !site) {
-      showFeedback('error', 'Worker or site not recognized.');
+    if (!employee || employee.status !== 'active') {
+      showFeedback('error', 'Employee not found or inactive.');
       setIsProcessing(false);
       return;
     }
 
-    let record = attendance.find(r => r.workerId === data.workerId && r.date === today);
+    // Constraint: One IN and one OUT per employee per day
+    let record = attendanceRecords.find(r => r.employee_id === empId && r.date === today);
     const now = new Date().toISOString();
+    const mode = navigator.onLine ? ScanMode.ONLINE : ScanMode.OFFLINE;
 
     if (record) {
-      if (record.checkInTime && record.checkOutTime) {
-        showFeedback('info', `${worker.name} already checked IN and OUT today.`);
+      if (record.time_in && record.time_out) {
+        showFeedback('info', `${employee.full_name} has already completed IN and OUT for today.`);
         setIsProcessing(false);
         return;
       }
       
-      record.checkOutTime = now;
-      record.status = 'PENDING';
-      showFeedback('success', `Check OUT successful for ${worker.name}`);
+      // Update OUT time
+      record.time_out = now;
+      record.sync_status = SyncStatus.PENDING;
+      record.scan_mode = mode;
+      showFeedback('success', `Check OUT successful: ${employee.full_name}`);
     } else {
+      // Create new IN record
       record = {
-        id: `ATT-${Date.now()}`,
+        attendance_id: `ATT-${Date.now()}-${empId}`,
+        employee_id: empId,
+        employee_name: employee.full_name,
+        employee_specialization: employee.specialization,
+        site_id: siteId,
+        site_name: site?.site_name || 'Unknown',
+        timekeeper_id: timekeeperId,
         date: today,
-        workerId: worker.id,
-        workerName: worker.name,
-        workerRole: worker.role,
-        siteId: site.id,
-        siteName: site.name,
-        timekeeperId: timekeeperId,
-        checkInTime: now,
-        status: 'PENDING'
+        time_in: now,
+        time_out: null,
+        scan_mode: mode,
+        sync_status: SyncStatus.PENDING,
+        created_at: now
       };
-      attendance.push(record);
-      showFeedback('success', `Check IN successful for ${worker.name}`);
+      attendanceRecords.push(record);
+      showFeedback('success', `Check IN successful: ${employee.full_name}`);
     }
 
-    storageService.saveAttendance(attendance);
+    storageService.saveAttendance(attendanceRecords);
     onScanSuccess(record);
     
-    setTimeout(() => {
-      setIsProcessing(false);
-    }, 2000);
+    setTimeout(() => setIsProcessing(false), 2000);
   };
 
   const showFeedback = (type: 'success' | 'error' | 'info', message: string) => {
@@ -124,7 +125,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden p-6 relative">
         <h2 className="text-xl font-bold mb-2 text-center">QR Attendance Scanner</h2>
-        <p className="text-slate-500 text-sm text-center mb-6">Manage site check-ins and check-outs</p>
+        <p className="text-slate-500 text-sm text-center mb-6">Attendance Database Protocol v2</p>
         
         {!isScanning ? (
           <div className="flex flex-col items-center py-10 px-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
@@ -132,10 +133,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
               <Camera size={40} />
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-2">Ready to Scan?</h3>
-            <p className="text-slate-500 text-sm text-center mb-8">Click the button below to activate your mobile camera for scanning worker IDs.</p>
+            <p className="text-slate-500 text-sm text-center mb-8">Initiate scan for Employee Badge.</p>
             <button 
               onClick={() => setIsScanning(true)}
-              className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl uppercase tracking-widest shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center space-x-3"
+              className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl uppercase tracking-widest shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center justify-center space-x-3"
             >
               <Camera size={24} strokeWidth={2.5} />
               <span>Scan QR</span>
@@ -166,16 +167,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, timekeeperId }) =>
             <span className="font-medium text-sm">{feedback.message}</span>
           </div>
         )}
-
-        <div className="mt-8 bg-slate-50 p-4 rounded-xl">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Instructions</h3>
-          <ul className="text-xs text-slate-600 space-y-1">
-            <li>• Ensure good lighting on the QR code</li>
-            <li>• First scan of the day will mark "IN"</li>
-            <li>• Second scan will mark "OUT"</li>
-            <li>• System generates immutable timestamps</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
