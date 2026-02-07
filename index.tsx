@@ -3,19 +3,26 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Global safety check for environment variables to prevent "No Display" (blank screen) crashes
-if (typeof (window as any).process === 'undefined') {
-  (window as any).process = { env: {} };
-}
+const mountApp = () => {
+  const rootElement = document.getElementById('root');
+  if (!rootElement) return;
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
+  try {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  } catch (err) {
+    console.error("Mounting Error:", err);
+    rootElement.innerHTML = `<div style="padding:40px; text-align:center;">
+      <h2 style="color:#ef4444;">App failed to start</h2>
+      <p style="color:#64748b;">This usually happens if a dependency fails to load.</p>
+      <button onclick="window.location.reload()" style="background:#2563eb; color:white; padding:10px 20px; border-radius:8px; border:none; cursor:pointer;">Reload App</button>
+    </div>`;
+  }
+};
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// Start the app
+mountApp();
