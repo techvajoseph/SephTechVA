@@ -23,7 +23,7 @@ const AdminPanel: React.FC = () => {
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     storageService.saveCloudConfig(cloudConfig);
-    alert("Cloud Configuration Saved Successfully!");
+    alert("Configuration Saved.");
   };
 
   const handleTestConnection = async () => {
@@ -51,7 +51,6 @@ const AdminPanel: React.FC = () => {
     setEmployees(updated);
     storageService.saveEmployees(updated);
     setShowAdd(false);
-    setNewEmp({ name: '', role: '', siteId: sites[0]?.site_id || '' });
   };
 
   const removeEmployee = (id: string) => {
@@ -68,16 +67,17 @@ const AdminPanel: React.FC = () => {
   const appsScriptCode = `function doPost(e) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var contents = JSON.parse(e.postData.contents);
-    var records = contents.records;
+    var postData = e.postData.contents;
+    var data = JSON.parse(postData);
+    var records = data.records;
     
     records.forEach(function(r) {
       sheet.appendRow([
         r.date, 
         r.employee_id, 
         r.employee_name, 
-        r.specialization || r.employee_specialization, 
-        r.site || r.site_name, 
+        r.specialization || r.employee_specialization || "", 
+        r.site || r.site_name || "", 
         r.time_in, 
         r.time_out, 
         r.timekeeper_id, 
@@ -116,7 +116,6 @@ function doGet() {
         </div>
       </div>
 
-      {/* Cloud Settings Card */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
@@ -162,7 +161,7 @@ function doGet() {
             <div className="p-3 bg-blue-50 rounded-lg flex items-start gap-2">
               <ExternalLink size={14} className="text-blue-500 mt-0.5 shrink-0" />
               <p className="text-[10px] text-blue-700 leading-relaxed">
-                Ensure you deploy as a <strong>Web App</strong> and set "Who has access" to <strong>Anyone</strong>. This allows the app to sync data without complex OAuth screens.
+                Ensure you deploy as a <strong>Web App</strong> and set "Who has access" to <strong>Anyone</strong>.
               </p>
             </div>
           </div>
@@ -181,12 +180,6 @@ function doGet() {
             <pre className="text-[9px] font-mono text-slate-500 bg-white p-3 rounded-lg overflow-x-auto border border-slate-200 h-32">
               {appsScriptCode}
             </pre>
-            <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
-              1. Open your Sheet > Extensions > Apps Script <br/>
-              2. Paste code & click "Deploy" > "New Deployment" <br/>
-              3. Select "Web App" > "Anyone" can access <br/>
-              4. Copy the URL into the field on the left.
-            </p>
           </div>
         </div>
       </div>
@@ -194,24 +187,14 @@ function doGet() {
       {showAdd && (
         <form onSubmit={addEmployee} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 animate-in slide-in-from-top duration-300">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Legal Name</label>
-              <input type="text" value={newEmp.name} onChange={e => setNewEmp({...newEmp, name: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none" required />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Specialization</label>
-              <input type="text" value={newEmp.role} onChange={e => setNewEmp({...newEmp, role: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none" required />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Primary Site</label>
-              <select value={newEmp.siteId} onChange={e => setNewEmp({...newEmp, siteId: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none">
-                {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
-              </select>
-            </div>
+            <input type="text" placeholder="Legal Name" value={newEmp.name} onChange={e => setNewEmp({...newEmp, name: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none" required />
+            <input type="text" placeholder="Role" value={newEmp.role} onChange={e => setNewEmp({...newEmp, role: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none" required />
+            <select value={newEmp.siteId} onChange={e => setNewEmp({...newEmp, siteId: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none">
+              {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
+            </select>
           </div>
-          <div className="flex justify-end mt-6 gap-3">
-             <button type="button" onClick={() => setShowAdd(false)} className="text-slate-400 font-bold px-4">Cancel</button>
-             <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20">Commit to Database</button>
+          <div className="flex justify-end mt-4">
+             <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">Add Worker</button>
           </div>
         </form>
       )}
@@ -220,18 +203,10 @@ function doGet() {
         <div className="p-4 border-b border-slate-100">
            <div className="relative">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-             <input type="text" placeholder="Search Database..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-100 focus:ring-2 focus:ring-blue-500 transition-all outline-none" />
+             <input type="text" placeholder="Search Database..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-100 focus:ring-2 focus:ring-blue-500 outline-none" />
            </div>
         </div>
         <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase">
-              <th className="px-6 py-4">Employee ID</th>
-              <th className="px-6 py-4">Full Name / Specialization</th>
-              <th className="px-6 py-4">Site ID</th>
-              <th className="px-6 py-4 text-center">Protocol</th>
-            </tr>
-          </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map(emp => (
               <tr key={emp.employee_id} className="hover:bg-slate-50/50">
@@ -240,11 +215,10 @@ function doGet() {
                   <p className="font-bold text-sm text-slate-800">{emp.full_name}</p>
                   <p className="text-xs text-slate-500">{emp.specialization}</p>
                 </td>
-                <td className="px-6 py-4 text-xs font-bold text-slate-600">{emp.assigned_site_id}</td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <button onClick={() => openQR(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><QrCode size={18} /></button>
-                    <button onClick={() => removeEmployee(emp.employee_id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={18} /></button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => openQR(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><QrCode size={18} /></button>
+                    <button onClick={() => removeEmployee(emp.employee_id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>

@@ -3,7 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Attendance } from "../types";
 import { storageService } from "./storage";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safely initialize AI client
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const geminiService = {
   /**
@@ -14,9 +15,8 @@ export const geminiService = {
       return { success: false, message: "Invalid URL format." };
     }
     try {
-      // We use a GET request to test if the script is alive
-      const response = await fetch(url);
-      // Even if no-cors is used, if it's reachable it won't throw
+      // Use no-cors for broadest compatibility during test
+      await fetch(url, { mode: 'no-cors' });
       return { success: true, message: "Bridge is reachable. Cloud database active." };
     } catch (err) {
       return { success: false, message: "Connection failed. Check your Deployment settings." };
@@ -25,8 +25,8 @@ export const geminiService = {
 
   /**
    * Syncs data to Google Sheets. 
-   * 1. Uses Gemini to format and validate the payload.
-   * 2. If a Google Sheet URL is configured, it sends a real POST request.
+   * MVP FIX: Using 'text/plain' and 'no-cors' to ensure the request 
+   * successfully leaves the browser without being blocked by CORS pre-flight.
    */
   async syncToCloud(pendingRecords: Attendance[]): Promise<{ success: boolean; syncedIds: string[]; message: string }> {
     if (pendingRecords.length === 0) return { success: true, syncedIds: [], message: "No records to sync." };
@@ -34,13 +34,10 @@ export const geminiService = {
     const config = storageService.getCloudConfig();
 
     try {
-      // Step 1: Format data using Gemini for clean spreadsheet insertion
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Format these construction attendance records for Google Sheets. 
-        Columns: [Date, Employee ID, Employee Name, Specialization, Site, Time In, Time Out, Timekeeper ID, Scan Mode, Sync Status]
-        Records: ${JSON.stringify(pendingRecords)}
-        Return only the formatted JSON array with IDs for confirmation.`,
+        contents: `Format these records for Google Sheets. 
+        Records: ${JSON.stringify(pendingRecords)}`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -57,47 +54,47 @@ export const geminiService = {
 
       const geminiResult = JSON.parse(response.text);
 
-      // Step 2: Perform real sync if URL exists
       if (config.googleSheetUrl && config.googleSheetUrl.startsWith('http')) {
         try {
+          // MVP FIX: Send as text/plain to avoid CORS pre-flight "options" requests
+          // Google Apps Script doPost handles this perfectly
           await fetch(config.googleSheetUrl, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' }, 
             body: JSON.stringify({ records: geminiResult.formattedData })
           });
           
           return { 
             success: true, 
             syncedIds: geminiResult.syncedIds, 
-            message: "Successfully pushed records to Google Sheets database." 
+            message: "Data transmitted to Google Sheets." 
           };
         } catch (fetchErr) {
-          console.error("Network error syncing to Sheets:", fetchErr);
-          return { success: false, syncedIds: [], message: "Network Error: Could not reach Google Sheets bridge." };
+          return { success: false, syncedIds: [], message: "Network Error: Google Sheets bridge unreachable." };
         }
       }
 
       return { 
         success: true, 
         syncedIds: geminiResult.syncedIds, 
-        message: "Records processed locally. (Cloud Sync skipped: No URL configured in Admin Settings)" 
+        message: "Processed locally. (No Cloud URL configured)" 
       };
     } catch (error) {
-      console.error("Gemini processing failed:", error);
-      return { success: false, syncedIds: [], message: "Processing Error: AI could not format the sync payload." };
+      return { success: false, syncedIds: [], message: "AI Formatting Error." };
     }
   },
 
   async getAttendanceInsights(records: Attendance[]): Promise<string> {
     if (records.length === 0) return "No data available for analysis.";
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Analyze this workforce data and generate a high-level site operations summary for the project manager. 
-      Data: ${JSON.stringify(records)}`,
-    });
-
-    return response.text;
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Generate a short summary of this workforce activity: ${JSON.stringify(records)}`,
+      });
+      return response.text;
+    } catch (e) {
+      return "Insight generation currently unavailable.";
+    }
   }
 };
